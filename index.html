@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Criptografia no SQL - Aula Interativa</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts: Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+    <!-- Configuração do Tailwind -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#f0fdfa',
+                            100: '#ccfbf1',
+                            500: '#14b8a6',
+                            600: '#0d9488',
+                            900: '#134e4a',
+                            dark: '#0f172a'
+                        }
+                    },
+                    animation: {
+                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        'slide-right': 'slideRight 2s linear infinite',
+                    },
+                    keyframes: {
+                        slideRight: {
+                            '0%': { transform: 'translateX(0)', opacity: '0' },
+                            '10%': { opacity: '1' },
+                            '90%': { opacity: '1' },
+                            '100%': { transform: 'translateX(200px)', opacity: '0' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Estilos personalizados para barra de rolagem e efeitos */
+        body { background-color: #0f172a; color: #f8fafc; }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #1e293b; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+        
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .section-content { display: none; animation: fadeIn 0.3s ease-in-out; }
+        .section-content.active { display: block; }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .nav-item.active {
+            background-color: rgba(20, 184, 166, 0.15);
+            border-right: 3px solid #14b8a6;
+            color: #5eead4;
+        }
+
+        /* Animação do pacote de dados */
+        .data-packet {
+            position: absolute;
+            left: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+    </style>
+</head>
+<body class="h-screen flex overflow-hidden font-sans">
+
+    <!-- Sidebar Navegação (Desktop) / Menu (Mobile) -->
+    <aside class="w-64 glass-panel border-r border-slate-700 flex-shrink-0 flex flex-col hidden md:flex z-20">
+        <div class="p-6 border-b border-slate-700">
+            <h1 class="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-teal-400 to-emerald-300 flex items-center gap-2">
+                <i class="ph ph-shield-check text-2xl text-teal-400"></i>
+                SQL SecClass
+            </h1>
+            <p class="text-xs text-slate-400 mt-1">Proteção em Camadas</p>
+        </div>
+        
+        <nav class="flex-1 overflow-y-auto py-4" id="nav-menu">
+            <button onclick="navigate('intro')" class="nav-item active w-full flex items-center gap-3 px-6 py-3 text-left text-slate-300 hover:bg-slate-800 transition-colors">
+                <i class="ph ph-presentation-chart text-xl"></i>
+                <span>1. Introdução</span>
+            </button>
+            <button onclick="navigate('transit')" class="nav-item w-full flex items-center gap-3 px-6 py-3 text-left text-slate-300 hover:bg-slate-800 transition-colors">
+                <i class="ph ph-arrows-left-right text-xl"></i>
+                <span>2. Em Trânsito (TLS)</span>
+            </button>
+            <button onclick="navigate('rest')" class="nav-item w-full flex items-center gap-3 px-6 py-3 text-left text-slate-300 hover:bg-slate-800 transition-colors">
+                <i class="ph ph-hard-drives text-xl"></i>
+                <span>3. Em Repouso (TDE)</span>
+            </button>
+            <button onclick="navigate('column')" class="nav-item w-full flex items-center gap-3 px-6 py-3 text-left text-slate-300 hover:bg-slate-800 transition-colors">
+                <i class="ph ph-table text-xl"></i>
+                <span>4. Nível de Coluna</span>
+            </button>
+            <button onclick="navigate('always')" class="nav-item w-full flex items-center gap-3 px-6 py-3 text-left text-slate-300 hover:bg-slate-800 transition-colors">
+                <i class="ph ph-lock-key text-xl"></i>
+                <span>5. Always Encrypted</span>
+            </button>
+            <button onclick="navigate('hash')" class="nav-item w-full flex items-center gap-3 px-6 py-3 text-left text-slate-300 hover:bg-slate-800 transition-colors">
+                <i class="ph ph-password text-xl"></i>
+                <span>6. Hashing de Senhas</span>
+            </button>
+            <button onclick="navigate('summary')" class="nav-item w-full flex items-center gap-3 px-6 py-3 text-left text-slate-300 hover:bg-slate-800 transition-colors">
+                <i class="ph ph-list-checks text-xl"></i>
+                <span>Resumo / Tabela</span>
+            </button>
+        </nav>
+    </aside>
+
+    <!-- Mobile Header -->
+    <div class="md:hidden fixed top-0 left-0 right-0 glass-panel z-30 border-b border-slate-700 p-4 flex justify-between items-center">
+        <h1 class="text-lg font-bold text-teal-400 flex items-center gap-2">
+            <i class="ph ph-shield-check text-xl"></i> SQL SecClass
+        </h1>
+        <button id="mobile-menu-btn" class="text-slate-300 text-2xl focus:outline-none">
+            <i class="ph ph-list"></i>
+        </button>
+    </div>
+
+    <!-- Mobile Menu Overlay -->
+    <div id="mobile-menu" class="hidden fixed inset-0 bg-slate-900/95 z-40 flex flex-col pt-16">
+        <button id="close-menu-btn" class="absolute top-4 right-4 text-slate-300 text-2xl"><i class="ph ph-x"></i></button>
+        <!-- Clone of nav items will be injected here via JS -->
+        <nav class="flex-1 overflow-y-auto py-4" id="mobile-nav-container"></nav>
+    </div>
+
+    <!-- Conteúdo Principal -->
+    <main class="flex-1 h-full overflow-y-auto bg-slate-900 relative pt-16 md:pt-0">
+        <!-- Background Decorativo -->
+        <div class="absolute top-0 left-0 w-full h-full overflow-hidden z-0 pointer-events-none">
+            <div class="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-teal-600/10 rounded-full blur-[100px]"></div>
+            <div class="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-600/10 rounded-full blur-[100px]"></div>
+        </div>
+
+        <div class="relative z-10 max-w-4xl mx-auto p-6 md:p-12 pb-24">
+            
+            <!-- SEÇÃO 1: INTRO -->
+            <section id="intro" class="section-content active">
+                <div class="text-center mb-10">
+                    <div class="inline-block p-4 bg-teal-500/10 rounded-full mb-4">
+                        <i class="ph ph-bank text-5xl text-teal-400"></i>
+                    </div>
+                    <h2 class="text-3xl md:text-4xl font-bold text-white mb-4">Bem-vindo ao Cofre</h2>
+                    <p class="text-lg text-slate-300 max-w-2xl mx-auto">
+                        Imagine que seu banco de dados é um grande cofre de banco. Se alguém roubar o cofre, interceptar o carro-forte ou se o próprio gerente for mal-intencionado, como protegemos o que está lá dentro?
+                    </p>
+                </div>
+                
+                <div class="grid md:grid-cols-2 gap-6 mt-12">
+                    <div class="glass-panel p-6 rounded-xl">
+                        <h3 class="text-xl font-semibold text-white mb-2 flex items-center gap-2">
+                            <i class="ph ph-text-aa text-slate-400"></i> Texto Claro
+                        </h3>
+                        <p class="text-slate-400 text-sm mb-4">Dados originais, legíveis por qualquer pessoa.</p>
+                        <div class="bg-slate-800 p-3 rounded text-green-400 font-mono text-sm">
+                            Nome: João da Silva<br>
+                            Cartão: 4111 1111 1111 1111
+                        </div>
+                    </div>
+                    
+                    <div class="glass-panel p-6 rounded-xl border-t-2 border-t-teal-500">
+                        <h3 class="text-xl font-semibold text-white mb-2 flex items-center gap-2">
+                            <i class="ph ph-file-code text-teal-400"></i> Texto Cifrado
+                        </h3>
+                        <p class="text-slate-400 text-sm mb-4">Dados embaralhados por um algoritmo e uma chave.</p>
+                        <div class="bg-slate-800 p-3 rounded text-slate-500 font-mono text-sm break-all">
+                            0x01000000D0C8B...9A8F7<br>
+                            V2FqZTIzOTFqM...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-12 bg-blue-900/30 border border-blue-800 p-6 rounded-xl">
+                    <h3 class="text-lg font-bold text-blue-300 mb-2">Por que isso importa?</h3>
+                    <p class="text-slate-300">
+                        Leis como a LGPD exigem que dados sensíveis (CPFs, cartões, saúde) sejam protegidos. Na nossa aula, veremos que **não existe uma criptografia única**, mas sim "camadas de proteção" dependendo de onde o dado está.
+                    </p>
+                </div>
+            </section>
+
+            <!-- SEÇÃO 2: TRÂNSITO -->
+            <section id="transit" class="section-content">
+                <div class="mb-8">
+                    <h2 class="text-3xl font-bold text-white mb-4 flex items-center gap-3">
+                        <i class="ph ph-arrows-left-right text-teal-400"></i> Criptografia em Trânsito
+                    </h2>
+                    <p class="text-slate-300 text-lg">Protege os dados enquanto eles viajam pelo "carro-forte" da rede.</p>
+                </div>
+
+                <div class="glass-panel p-8 rounded-xl mb-8 relative overflow-hidden">
+                    <h3 class="text-xl font-semibold text-white mb-6">O Conceito (TLS / SSL)</h3>
+                    
+                    <!-- Diagrama Interativo/Animado -->
+                    <div class="flex items-center justify-between mt-8 relative px-4">
+                        <!-- App -->
+                        <div class="flex flex-col items-center z-10">
+                            <div class="w-16 h-16 bg-slate-800 rounded-2xl flex items-center justify-center border-2 border-slate-600 shadow-lg">
+                                <i class="ph ph-device-mobile text-3xl text-blue-400"></i>
+                            </div>
+                            <span class="mt-2 text-sm text-slate-400 font-semibold">Aplicativo</span>
+                        </div>
+
+                        <!-- Tunnel -->
+                        <div class="flex-1 h-12 relative mx-4 flex items-center justify-center">
+                            <!-- Fundo do tunel -->
+                            <div class="absolute inset-0 border-y-2 border-dashed border-teal-500/50 bg-teal-900/20"></div>
+                            <span class="relative z-10 text-xs text-teal-300 font-mono bg-slate-900 px-2 rounded">Túnel Criptografado (Rede)</span>
+                            
+                            <!-- Pacote Animado -->
+                            <div class="data-packet animate-slide-right w-6 h-6 bg-teal-400 rounded flex items-center justify-center shadow-[0_0_15px_rgba(45,212,191,0.6)]">
+                                <i class="ph ph-lock-key text-slate-900 text-xs"></i>
+                            </div>
+                        </div>
+
+                        <!-- DB -->
+                        <div class="flex flex-col items-center z-10">
+                            <div class="w-16 h-16 bg-slate-800 rounded-2xl flex items-center justify-center border-2 border-slate-600 shadow-lg">
+                                <i class="ph ph-database text-3xl text-blue-400"></i>
+                            </div>
+                            <span class="mt-2 text-sm text-slate-400 font-semibold">Servidor SQL</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid md:grid-cols-2 gap-6">
+                    <div class="bg-slate-800 p-6 rounded-xl border-l-4 border-teal-500">
+                        <h4 class="font-bold text-teal-400 mb-2">A Analogia</h4>
+                        <p class="text-slate-300 text-sm">É como enviar uma carta dentro de um envelope blindado. O carteiro (a internet) carrega o envelope, mas não consegue ler o que está escrito no papel lá dentro.</p>
+                    </div>
+                    <div class="bg-slate-800 p-6 rounded-xl border-l-4 border-red-500">
+                        <h4 class="font-bold text-red-400 mb-2">Ataque Evitado</h4>
+                        <p class="text-slate-300 text-sm"><strong>Man-in-the-Middle</strong> (Homem no meio). Evita que um hacker num Wi-Fi público intercepte a rede e roube a senha viajando do celular até o servidor.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SEÇÃO 3: REPOUSO -->
+            <section id="rest" class="section-content">
+                <div class="mb-8">
+                    <h2 class="text-3xl font-bold text-white mb-4 flex items-center gap-3">
+                        <i class="ph ph-hard-drives text-teal-400"></i> Criptografia em Repouso (TDE)
+                    </h2>
+                    <p class="text-slate-300 text-lg">TDE - <em>Transparent Data Encryption</em>. Protege os arquivos físicos do banco parados no disco.</p>
+                </div>
+
+                <div class="glass-panel p-8 rounded-xl mb-8 flex flex-col md:flex-row items-center gap-8">
+                    <div class="flex-1">
+                        <h3 class="text-xl font-semibold text-white mb-4">Transparente para a Aplicação</h3>
+                        <p class="text-slate-300 text-sm mb-4">
+                            O banco de dados (SQL Server, por exemplo) criptografa os dados <strong>antes</strong> de salvá-los no disco rígido (arquivos .mdf, .ndf) e descriptografa quando carrega na memória.
+                        </p>
+                        <p class="text-slate-300 text-sm">
+                            A aplicação nem sabe que isso acontece (por isso é "transparente"). Não é necessário alterar nenhuma query (SELECT, INSERT).
+                        </p>
+                    </div>
+                    <div class="w-full md:w-1/3 flex justify-center relative">
+                        <div class="relative">
+                            <i class="ph ph-hard-drive text-9xl text-slate-600"></i>
+                            <div class="absolute inset-0 flex items-center justify-center">
+                                <i class="ph ph-lock-key text-5xl text-teal-400 bg-slate-900 rounded-full p-2 border-4 border-slate-900 shadow-xl"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid md:grid-cols-2 gap-6">
+                    <div class="bg-slate-800 p-6 rounded-xl border-l-4 border-teal-500">
+                        <h4 class="font-bold text-teal-400 mb-2">A Analogia</h4>
+                        <p class="text-slate-300 text-sm">O prédio do banco e as paredes do cofre são indestrutíveis de fora para dentro. Ninguém entra para roubar à força.</p>
+                    </div>
+                    <div class="bg-slate-800 p-6 rounded-xl border-l-4 border-red-500">
+                        <h4 class="font-bold text-red-400 mb-2">Ataque Evitado</h4>
+                        <p class="text-slate-300 text-sm">Roubo físico do HD no Data Center ou cópia não autorizada do arquivo de <strong>Backup</strong> (o hacker leva o backup pra casa, mas não consegue anexar sem o certificado).</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SEÇÃO 4: COLUNA -->
+            <section id="column" class="section-content">
+                <div class="mb-8">
+                    <h2 class="text-3xl font-bold text-white mb-4 flex items-center gap-3">
+                        <i class="ph ph-table text-teal-400"></i> Nível de Coluna
+                    </h2>
+                    <p class="text-slate-300 text-lg">Proteção cirúrgica. Em vez de criptografar o banco todo, miramos em dados específicos.</p>
+                </div>
+
+                <div class="glass-panel p-6 rounded-xl mb-8">
+                    <h3 class="text-xl font-semibold text-white mb-4">Criptografia Granular</h3>
+                    
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm text-slate-300">
+                            <thead class="text-xs text-slate-400 uppercase bg-slate-800">
+                                <tr>
+                                    <th scope="col" class="px-6 py-3 rounded-tl-lg">ID</th>
+                                    <th scope="col" class="px-6 py-3">Nome Completo</th>
+                                    <th scope="col" class="px-6 py-3 text-teal-400 flex items-center gap-1">
+                                        <i class="ph ph-lock-key"></i> NumCartaoCredito
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="border-b border-slate-700 bg-slate-800/50">
+                                    <td class="px-6 py-4">1</td>
+                                    <td class="px-6 py-4">Maria Oliveira</td>
+                                    <td class="px-6 py-4 font-mono text-xs text-slate-500">0x01000000D0C8B9A8F...</td>
+                                </tr>
+                                <tr class="border-b border-slate-700 bg-slate-800/50">
+                                    <td class="px-6 py-4">2</td>
+                                    <td class="px-6 py-4">Carlos Souza</td>
+                                    <td class="px-6 py-4 font-mono text-xs text-slate-500">0x01000000E1D9C0B9E...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="grid md:grid-cols-2 gap-6">
+                    <div class="bg-slate-800 p-6 rounded-xl">
+                        <h4 class="font-bold text-green-400 mb-2 flex items-center gap-2"><i class="ph ph-check-circle"></i> Vantagem</h4>
+                        <p class="text-slate-300 text-sm">Altamente seguro contra leitura não autorizada. Se um funcionário tem acesso de leitura (SELECT) na tabela, ele verá os nomes, mas o cartão aparecerá como "lixo" se ele não tiver a chave de descriptografia ou permissão.</p>
+                    </div>
+                    <div class="bg-slate-800 p-6 rounded-xl">
+                        <h4 class="font-bold text-orange-400 mb-2 flex items-center gap-2"><i class="ph ph-warning"></i> Desvantagem</h4>
+                        <p class="text-slate-300 text-sm">Afeta a <strong>performance</strong>. O banco usa CPU para criptografar/descriptografar via funções internas (`ENCRYPTBYKEY`). Fazer buscas (WHERE) nessas colunas se torna lento, e índices tradicionais não funcionam bem.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SEÇÃO 5: ALWAYS ENCRYPTED -->
+            <section id="always" class="section-content">
+                <div class="mb-8">
+                    <h2 class="text-3xl font-bold text-white mb-4 flex items-center gap-3">
+                        <i class="ph ph-lock-key text-teal-400"></i> Always Encrypted
+                    </h2>
+                    <p class="text-slate-300 text-lg">O "Padrão Ouro". O Servidor SQL <strong>nunca</strong> vê o dado em texto claro.</p>
+                </div>
+
+                <div class="glass-panel p-6 rounded-xl mb-8 text-center">
+                    <div class="flex flex-col md:flex-row items-center justify-center gap-6 mb-6">
+                        
+                        <!-- Client App -->
+                        <div class="bg-slate-800 p-4 rounded-xl border border-teal-500 relative w-full md:w-1/3">
+                            <div class="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-teal-500 text-slate-900 text-xs font-bold px-2 py-1 rounded">Chaves Mestre aqui!</div>
+                            <i class="ph ph-braces text-4xl text-blue-400 mb-2 block"></i>
+                            <h4 class="font-bold text-white mb-1">Aplicação (Driver)</h4>
+                            <p class="text-xs text-slate-400">Criptografa ANTES de enviar.</p>
+                        </div>
+
+                        <div class="text-teal-400 flex flex-col items-center">
+                            <span class="text-xs font-mono bg-slate-900 px-2 rounded mb-1">0x8F9A...</span>
+                            <i class="ph ph-arrow-right text-2xl hidden md:block"></i>
+                            <i class="ph ph-arrow-down text-2xl md:hidden"></i>
+                        </div>
+
+                        <!-- DB Engine -->
+                        <div class="bg-slate-800 p-4 rounded-xl border border-red-500/50 w-full md:w-1/3 opacity-80">
+                            <i class="ph ph-database text-4xl text-slate-500 mb-2 block"></i>
+                            <h4 class="font-bold text-white mb-1">Servidor SQL</h4>
+                            <p class="text-xs text-slate-400">Só armazena. Não tem a chave.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-blue-900/30 border border-blue-800 p-6 rounded-xl">
+                    <h4 class="font-bold text-blue-400 mb-2 text-lg">O pesadelo do DBA mal-intencionado</h4>
+                    <p class="text-slate-300 text-sm mb-3">
+                        Geralmente, o Administrador de Banco de Dados (DBA) tem poder total. No TDE ou Criptografia de Coluna, um DBA com acesso root consegue, teoricamente, chegar aos dados.
+                    </p>
+                    <p class="text-slate-300 text-sm">
+                        Com o <strong>Always Encrypted</strong>, a criptografia acontece na aplicação (no cliente, ex: código C# ou Java). O banco só recebe dados cifrados. Se o DBA executar um <code>SELECT * FROM Tabela</code>, ele só verá "lixo". Ele precisaria invadir o servidor da aplicação para pegar a chave.
+                    </p>
+                </div>
+            </section>
+
+            <!-- SEÇÃO 6: HASHING -->
+            <section id="hash" class="section-content">
+                <div class="mb-8">
+                    <h2 class="text-3xl font-bold text-white mb-4 flex items-center gap-3">
+                        <i class="ph ph-password text-teal-400"></i> Hashing vs Criptografia
+                    </h2>
+                    <p class="text-slate-300 text-lg">Um parêntese muito importante sobre senhas.</p>
+                </div>
+
+                <div class="grid md:grid-cols-2 gap-8 mb-8">
+                    <!-- Criptografia -->
+                    <div class="glass-panel p-6 rounded-xl relative">
+                        <div class="absolute top-2 right-2"><i class="ph ph-arrows-left-right text-blue-400 text-xl"></i></div>
+                        <h3 class="text-xl font-bold text-white mb-2">Criptografia</h3>
+                        <p class="text-slate-400 text-sm mb-4">É uma via de <strong>mão dupla</strong>. Você embaralha e, com a chave, pode desembaralhar.</p>
+                        <div class="flex items-center gap-2 text-sm font-mono bg-slate-800 p-2 rounded">
+                            <span class="text-white">"secreta"</span>
+                            <i class="ph ph-arrow-right text-teal-400"></i>
+                            <span class="text-slate-500">"0x1A2B"</span>
+                            <i class="ph ph-arrow-right text-teal-400"></i>
+                            <span class="text-white">"secreta"</span>
+                        </div>
+                    </div>
+
+                    <!-- Hashing -->
+                    <div class="glass-panel p-6 rounded-xl border-t-2 border-t-emerald-500 relative">
+                        <div class="absolute top-2 right-2"><i class="ph ph-arrow-right text-emerald-400 text-xl"></i></div>
+                        <h3 class="text-xl font-bold text-white mb-2">Hashing</h3>
+                        <p class="text-slate-400 text-sm mb-4">É uma via de <strong>mão única</strong> (Liquidificador). Você transforma, mas é matematicamente impossível reverter para o original.</p>
+                        <div class="flex items-center gap-2 text-sm font-mono bg-slate-800 p-2 rounded">
+                            <span class="text-white">"123mudar"</span>
+                            <i class="ph ph-arrow-right text-emerald-400"></i>
+                            <span class="text-slate-500 truncate w-32">"a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3"</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-red-900/30 border border-red-800 p-6 rounded-xl">
+                    <h4 class="font-bold text-red-400 mb-2 text-lg">Regra de Ouro da Segurança</h4>
+                    <p class="text-white font-semibold">Senhas NUNCA devem ser criptografadas no banco. Elas devem sofrer Hashing (com um Salt).</p>
+                    <p class="text-slate-300 text-sm mt-2">
+                        O banco salva o Hash. Quando você faz login, o sistema gera o Hash da senha que você digitou e compara com o Hash salvo no banco. Se os hashes baterem, você entra. Assim, se o banco vazar, ninguém sabe qual era sua senha real.
+                    </p>
+                </div>
+            </section>
+
+            <!-- SEÇÃO 7: RESUMO -->
+            <section id="summary" class="section-content">
+                <div class="mb-8">
+                    <h2 class="text-3xl font-bold text-white mb-4 flex items-center gap-3">
+                        <i class="ph ph-list-checks text-teal-400"></i> Resumo Prático
+                    </h2>
+                    <p class="text-slate-300 text-lg">A tabela final de tomada de decisão.</p>
+                </div>
+
+                <div class="glass-panel rounded-xl overflow-hidden shadow-2xl">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm text-slate-300">
+                            <thead class="text-xs text-white uppercase bg-slate-800 border-b border-slate-700">
+                                <tr>
+                                    <th scope="col" class="px-6 py-4">Tecnologia</th>
+                                    <th scope="col" class="px-6 py-4">Onde Protege?</th>
+                                    <th scope="col" class="px-6 py-4 text-center">Protege roubo HD/Backup?</th>
+                                    <th scope="col" class="px-6 py-4 text-center">Protege contra o DBA?</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-700">
+                                <tr class="hover:bg-slate-800/50 transition-colors">
+                                    <td class="px-6 py-4 font-semibold text-white">TLS / SSL</td>
+                                    <td class="px-6 py-4">Na Rede (Trânsito)</td>
+                                    <td class="px-6 py-4 text-center"><i class="ph ph-x-circle text-red-400 text-xl"></i></td>
+                                    <td class="px-6 py-4 text-center"><i class="ph ph-x-circle text-red-400 text-xl"></i></td>
+                                </tr>
+                                <tr class="hover:bg-slate-800/50 transition-colors">
+                                    <td class="px-6 py-4 font-semibold text-white">TDE</td>
+                                    <td class="px-6 py-4">Disco (Repouso)</td>
+                                    <td class="px-6 py-4 text-center"><i class="ph ph-check-circle text-green-400 text-xl"></i></td>
+                                    <td class="px-6 py-4 text-center"><i class="ph ph-x-circle text-red-400 text-xl"></i></td>
+                                </tr>
+                                <tr class="hover:bg-slate-800/50 transition-colors">
+                                    <td class="px-6 py-4 font-semibold text-white">Nível de Coluna</td>
+                                    <td class="px-6 py-4">Na Tabela (Granular)</td>
+                                    <td class="px-6 py-4 text-center"><i class="ph ph-check-circle text-green-400 text-xl"></i></td>
+                                    <td class="px-6 py-4 text-center text-xs text-yellow-400">Depende das permissões</td>
+                                </tr>
+                                <tr class="bg-teal-900/20 hover:bg-teal-900/30 transition-colors">
+                                    <td class="px-6 py-4 font-semibold text-teal-400">Always Encrypted</td>
+                                    <td class="px-6 py-4 text-teal-300">Aplicação e Banco</td>
+                                    <td class="px-6 py-4 text-center"><i class="ph ph-check-circle text-green-400 text-xl"></i></td>
+                                    <td class="px-6 py-4 text-center"><i class="ph ph-check-circle text-green-400 text-xl"></i></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="mt-8 text-center">
+                    <button onclick="navigate('intro')" class="bg-teal-600 hover:bg-teal-500 text-white font-semibold py-2 px-6 rounded-full transition-colors flex items-center justify-center gap-2 mx-auto">
+                        <i class="ph ph-arrow-counter-clockwise"></i> Reiniciar Aula
+                    </button>
+                </div>
+            </section>
+
+        </div>
+    </main>
+
+    <script>
+        // Lógica de Navegação da SPA
+        function navigate(sectionId) {
+            // Esconder todas as seções
+            document.querySelectorAll('.section-content').forEach(section => {
+                section.classList.remove('active');
+            });
+            
+            // Remover 'active' de todos os botões do menu (desktop e mobile)
+            document.querySelectorAll('.nav-item').forEach(btn => {
+                btn.classList.remove('active');
+            });
+
+            // Mostrar a seção alvo
+            document.getElementById(sectionId).classList.add('active');
+            
+            // Adicionar 'active' aos botões correspondentes
+            document.querySelectorAll(`.nav-item[onclick="navigate('${sectionId}')"]`).forEach(btn => {
+                btn.classList.add('active');
+            });
+
+            // Fechar menu mobile se estiver aberto
+            document.getElementById('mobile-menu').classList.add('hidden');
+            
+            // Rolar para o topo
+            document.querySelector('main').scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        // Configuração do Menu Mobile
+        document.addEventListener('DOMContentLoaded', () => {
+            const navMenu = document.getElementById('nav-menu');
+            const mobileNavContainer = document.getElementById('mobile-nav-container');
+            const mobileMenuBtn = document.getElementById('mobile-menu-btn');
+            const closeMenuBtn = document.getElementById('close-menu-btn');
+            const mobileMenu = document.getElementById('mobile-menu');
+
+            // Clonar itens do menu para a versão mobile
+            mobileNavContainer.innerHTML = navMenu.innerHTML;
+
+            // Abrir menu mobile
+            mobileMenuBtn.addEventListener('click', () => {
+                mobileMenu.classList.remove('hidden');
+            });
+
+            // Fechar menu mobile
+            closeMenuBtn.addEventListener('click', () => {
+                mobileMenu.classList.add('hidden');
+            });
+        });
+    </script>
+</body>
+</html>
